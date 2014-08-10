@@ -1,0 +1,160 @@
+---
+- name: install depences
+  apt: pkg={{ item }}
+  with_items:
+    - mysql-server
+    - libmysqlclient-dev
+    - python-pip
+    - python-dev
+
+- name: install pip modules
+  pip: name={{ item }}
+  with_items:
+    - mysql-python
+
+- name: generate mysql root password
+  shell:
+    test -f /root/.my.cnf
+    && (grep ^password /root/.my.cnf | head -1 | awk '{print $3}')
+    || (cat /dev/urandom | tr -dc '[:alnum:]' | head -c 32)
+  changed_when: False
+  register: mysql_root_pass
+
+- name: set mysql root password
+  mysql_user:
+    name=root
+    host=localhost
+    password={{ mysql_root_pass.stdout }}
+
+- name: put .my.cnf
+  template:
+    src=root/.my.cnf
+    dest=/root/.my.cnf
+    mode=600
+
+- name: set mysql root password
+  mysql_user:
+    name=root
+    host={{ item }}
+    password={{ mysql_root_pass.stdout }}
+  with_items:
+    - "{{ ansible_hostname }}"
+    - 127.0.0.1
+    - ::1
+
+- name: generate mysql replication user password
+  shell:
+    echo -n '{{ mysql_root_pass.stdout }}' | md5sum
+    | awk '{print $1}'
+  changed_when: False
+  when: mysql_repl_role == "master"
+  register: mysql_repl_pass
+
+- name: create replication user
+  mysql_user:
+    name={{ mysql_repl_user }}
+    password={{ mysql_repl_pass.stdout }}
+    host={{ mysql_repl_net }}
+    priv=*.*:"REPLICATION SLAVE"
+  when: mysql_repl_role == "master"
+
+- name: generate server-id
+  shell:
+    hostname -I | sed -e 's/ /\n/' | grep -v '^$'
+    | tail -1 | awk -F. '{print $3 * 256 + $4}'
+  changed_when: False
+  register: mysql_server_id
+
+- name: put my.cnf
+  template:
+    src=etc/mysql/my.cnf.j2
+    dest=/etc/mysql/my.cnf
+  register: last_result
+
+- name: restart mysql
+  service:
+    name=mysql
+    state=restarted
+  when: last_result.changed
+
+- name: put mysqlrepldump.sh
+  copy:
+    src=usr/local/bin/mysqlrepldump.sh
+    dest=/usr/local/bin/mysqlrepldump.sh
+    mode=755
+
+- name: export dump file
+  shell:
+    mysqlrepldump.sh | gzip > /tmp/mysqldump.sql.gz
+  when: mysql_repl_role == "master"
+
+- name: fetch dump file
+  fetch:
+    src=/tmp/mysqldump.sql.gz
+    dest=tmp/mysqldump.sql.gz
+    flat=yes
+  when: mysql_repl_role == "master"
+
+- name: put dump file
+  copy:
+    src=tmp/mysqldump.sql.gz
+    dest=/tmp/mysqldump.sql.gz
+  when: mysql_repl_role == "slave"
+
+- name: check status of slaves
+  mysql_replication: mode=getslave
+  ignore_errors: true
+  register: slave_status
+  when: mysql_repl_role == "slave"
+
+- name: stop replication
+  mysql_replication: mode=stopslave
+  when: mysql_repl_role == "slave" and (slave_status|failed or slave_status.Slave_SQL_Running != "Yes")
+
+- name: import dump file
+  shell:
+    zcat /tmp/mysqldump.sql.gz | mysql
+  when: mysql_repl_role == "slave" and (slave_status|failed or slave_status.Slave_SQL_Running != "Yes")
+
+- name: get value of MASTER_LOG_FILE
+  shell:
+    zgrep '^-- CHANGE MASTER' /tmp/mysqldump.sql.gz
+    | sed -e 's/ /\n/g' | grep MASTER_LOG_FILE
+    | awk -F= '{print $2}' | sed "s/[',;]//g"
+  register: master_log_file
+  changed_when: False
+  failed_when: master_log_file.stdout == ""
+  when: mysql_repl_role == "master" or slave_status|failed or slave_status.Slave_SQL_Running != "Yes"
+
+- name: get value of MASTER_LOG_POS
+  shell:
+    zgrep '^-- CHANGE MASTER' /tmp/mysqldump.sql.gz
+    | sed -e 's/ /\n/g' | grep MASTER_LOG_POS
+    | awk -F= '{print $2}' | sed "s/[',;]//g"
+  register: master_log_pos
+  changed_when: False
+  failed_when: master_log_file.stdout == ""
+  when: mysql_repl_role == "master" or slave_status|failed or slave_status.Slave_SQL_Running != "Yes"
+
+- name: get mysql replication user password
+  shell:
+    grep ^password /root/.my.cnf  | head -1 | awk '{print $3}'
+    | tr -d '\n' | md5sum | awk '{print $1}'
+  changed_when: False
+  when: mysql_repl_role == "slave"
+  delegate_to: "{{ mysql_repl_master }}"
+  register: mysql_repl_pass
+
+- name: set replication
+  mysql_replication:
+    mode=changemaster
+    master_host={{ mysql_repl_master }}
+    master_user={{ mysql_repl_user }}
+    master_password={{ mysql_repl_pass.stdout }}
+    master_log_file={{ master_log_file.stdout }}
+    master_log_pos={{ master_log_pos.stdout }}
+  when: mysql_repl_role == "slave" and (slave_status|failed or slave_status.Slave_SQL_Running != "Yes")
+
+- name: start replication
+  mysql_replication: mode=startslave
+  when: mysql_repl_role == "slave" and (slave_status|failed or slave_status.Slave_SQL_Running != "Yes")

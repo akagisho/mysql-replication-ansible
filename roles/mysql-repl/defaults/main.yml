@@ -1,0 +1,8 @@
+---
+replicate_databases:
+  - test
+
+replicate_ignore_tables:
+  - test.hoge
+
+mysql_repl_user: repl_user

@@ -1,0 +1,12 @@
+---
+- hosts: master
+  sudo: yes
+  roles:
+    - common
+    - mysql-repl
+
+- hosts: slave
+  sudo: yes
+  roles:
+    - common
+    - mysql-repl

@@ -1,0 +1,14 @@
+---
+- name: change apt repository to jp
+  replace:
+    dest=/etc/apt/sources.list
+    regexp="http://archive\.ubuntu\.com/"
+    replace="http://jp.archive.ubuntu.com/"
+
+- name: set timezone to Asia/Tokyo
+  copy:
+    src=etc/timezone
+    dest=/etc/timezone
+
+- name: apt-get update
+  apt: update_cache=yes
