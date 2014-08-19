@@ -111,31 +111,6 @@
   mysql_replication: mode=stopslave
   when: mysql_repl_role == "slave" and (slave_status|failed or slave_status.Slave_SQL_Running != "Yes")
 
-- name: import dump file
-  shell:
-    zcat /tmp/mysqldump.sql.gz | mysql
-  when: mysql_repl_role == "slave" and (slave_status|failed or slave_status.Slave_SQL_Running != "Yes")
-
-- name: get value of MASTER_LOG_FILE
-  shell:
-    zgrep '^-- CHANGE MASTER' /tmp/mysqldump.sql.gz
-    | sed -e 's/ /\n/g' | grep MASTER_LOG_FILE
-    | awk -F= '{print $2}' | sed "s/[',;]//g"
-  register: master_log_file
-  changed_when: False
-  failed_when: master_log_file.stdout == ""
-  when: mysql_repl_role == "master" or slave_status|failed or slave_status.Slave_SQL_Running != "Yes"
-
-- name: get value of MASTER_LOG_POS
-  shell:
-    zgrep '^-- CHANGE MASTER' /tmp/mysqldump.sql.gz
-    | sed -e 's/ /\n/g' | grep MASTER_LOG_POS
-    | awk -F= '{print $2}' | sed "s/[',;]//g"
-  register: master_log_pos
-  changed_when: False
-  failed_when: master_log_file.stdout == ""
-  when: mysql_repl_role == "master" or slave_status|failed or slave_status.Slave_SQL_Running != "Yes"
-
 - name: get mysql replication user password
   shell:
     grep ^password /root/.my.cnf  | head -1 | awk '{print $3}'
@@ -151,8 +126,11 @@
     master_host={{ mysql_repl_master }}
     master_user={{ mysql_repl_user }}
     master_password={{ mysql_repl_pass.stdout }}
-    master_log_file={{ master_log_file.stdout }}
-    master_log_pos={{ master_log_pos.stdout }}
+  when: mysql_repl_role == "slave" and (slave_status|failed or slave_status.Slave_SQL_Running != "Yes")
+
+- name: import dump file
+  shell:
+    zcat /tmp/mysqldump.sql.gz | mysql
   when: mysql_repl_role == "slave" and (slave_status|failed or slave_status.Slave_SQL_Running != "Yes")
 
 - name: start replication
