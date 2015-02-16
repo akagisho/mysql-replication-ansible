@@ -1,4 +1,4 @@
-# ansible-mysql-replication
+# mysql-replication-ansible
 
 ## Requirements
 
@@ -19,8 +19,8 @@ Add below lines to `~/.ssh/config` of your local machine.
 
 Clone this repository.
 
-    $ git clone https://github.com/akagisho/ansible-mysql-replication.git
-    $ cd ansible-mysql-replication
+    $ git clone https://github.com/akagisho/mysql-replication-ansible.git
+    $ cd mysql-replication-ansible
 
 Start vagrant VMs.
 
