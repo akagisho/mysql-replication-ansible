@@ -28,7 +28,7 @@
 
 - name: put .my.cnf
   template:
-    src=root/.my.cnf
+    src=root/.my.cnf.j2
     dest=/root/.my.cnf
     mode=600
 
