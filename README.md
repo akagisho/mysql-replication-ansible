@@ -9,45 +9,24 @@
 
 ### Setup
 
-Add below lines to `~/.ssh/config` of your local machine.
-
-    Host 10.200.19.*
-        User vagrant
-        IdentityFile ~/.vagrant.d/insecure_private_key
-        UserKnownHostsFile /dev/null
-        StrictHostKeyChecking no
-
 Clone this repository.
 
     $ git clone https://github.com/akagisho/mysql-replication-ansible.git
     $ cd mysql-replication-ansible
 
-Start vagrant VMs.
+### Execute
+
+Start vagrant VMs and provision by using ansible.
 
     $ vagrant up
 
-Check VMs' connection.
+(After the first time) Execute ansible playbook.
 
-    $ ansible -i develop/inventory all -m ping
-    10.200.19.21 | success >> {
-        "changed": false,
-        "ping": "pong"
-    }
-
-    10.200.19.22 | success >> {
-        "changed": false,
-        "ping": "pong"
-    }
-
-### Execute
-
-Execute ansible playbook.
-
-    $ ansible-playbook -i develop/inventory site.yml
+    $ vagrant provosion
 
 Check replication status.
 
-    $ ssh 10.200.19.22 "sudo -H mysql -e 'SHOW SLAVE STATUS\G'"
+    $ vagrant ssh node2 --command "sudo -H mysql -e 'SHOW SLAVE STATUS\G'"
 
 ## References
 
