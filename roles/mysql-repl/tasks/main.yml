@@ -32,6 +32,13 @@
     dest=/root/.my.cnf
     mode=600
 
+- name: fetch .my.cnf
+  fetch:
+    src=/root/.my.cnf
+    dest=tmp/.my.cnf
+    flat=yes
+  when: mysql_repl_role == "master"
+
 - name: set mysql root password
   mysql_user:
     name=root
@@ -112,12 +119,12 @@
   when: mysql_repl_role == "slave" and (slave_status|failed or slave_status.Slave_SQL_Running != "Yes")
 
 - name: get mysql replication user password
-  shell:
-    grep ^password /root/.my.cnf  | head -1 | awk '{print $3}'
-    | tr -d '\n' | md5sum | awk '{print $1}'
+  local_action:
+    shell grep ^password tmp/.my.cnf | head -1 | awk '{print $3}'
+    | tr -d '\n' | md5
+  sudo: False
   changed_when: False
   when: mysql_repl_role == "slave"
-  delegate_to: "{{ mysql_repl_master }}"
   register: mysql_repl_pass
 
 - name: set replication
