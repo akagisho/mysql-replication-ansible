@@ -2,3 +2,5 @@
 tmp/*
 !tmp/.gitkeep
 group_vars/all
+production/group_vars/all.example
+production/inventory.example

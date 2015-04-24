@@ -22,9 +22,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       "slave"  => ["node2"],
     }
 
-    ansible.extra_vars = {
-      mysql_repl_master: "10.200.19.21",
-      mysql_repl_net: "10.200.19.0/255.255.255.0"
-    }
+    ansible.extra_vars = "develop/group_vars/all"
   end
 end
